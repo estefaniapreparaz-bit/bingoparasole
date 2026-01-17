@@ -1,0 +1,31 @@
+export const LETTERS = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ";
+
+export const ACTIVITIES = [
+  "A: Hagan un mate/tea date y díganse 3 cosas que aman de la otra 💛",
+  "B: Bailen 1 canción como si fuera un videoclip 🎶",
+  "C: Cocinen algo juntas (o armen una picadita deluxe) 🍓🧀",
+  "D: “Desafío”: 10 min de masajes por turnos 💆‍♀️",
+  "E: Escriban una mini carta de amor de 5 líneas 💌",
+  "F: Foto polaroid/insta y guárdenla de recuerdo 📸",
+  "G: Ganadora elige: peli/serie + snack obligatorio 🍿",
+  "H: Hagan un “hot takes” de cosas random y ríanse 10 min 😂",
+  "I: Inventen un apodo nuevo y usenlo todo el día 😈",
+  "J: Juego rápido: piedra/papel/tijera (al mejor de 5) ✋✌️✊",
+  "K: Karaoke: cantan una juntos aunque salga horrible 🎤",
+  "L: Llamen a alguien querido y digan algo lindo juntas ☎️",
+  "M: Mini caminata y saquen una foto de algo lindo que vean 🌙",
+  "N: Noche de postre: algo dulce sí o sí 🍫",
+  "Ñ: Ñoñada: armen un “top 5 planes soñados” para 2026 ✨",
+  "O: Ordenen un rincón chiquito juntas con música 🧺",
+  "P: Preguntas profundas: 3 preguntas de pareja (sin juzgar) 🫶",
+  "Q: Quiz: 5 preguntas tipo ‘¿qué prefiero?’ sobre la otra 🤓",
+  "R: Reto: 20 sentadillas juntas y premio: besito 💪💋",
+  "S: Self-care: skincare/cremita/masaje de manos ✨",
+  "T: Video corto gracioso (privado) 🎬",
+  "U: Un brindis (con lo que haya) por su año juntas 🥂",
+  "V: Vision board mini: 3 ideas para un plan futuro 🧠",
+  "W: Write it: 1 cosa que quieren aprender juntas 📚",
+  "X: Xtra mimo: 5 minutos de abrazo sin celular 🤍",
+  "Y: Yoga mini: estiramiento de 5 min juntas 🧘‍♀️",
+  "Z: “Zarpado plan”: organicen una salida sorpresa futura 🎁"
+];
