@@ -2,88 +2,15 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bingo Abecedario de Sole ✨</title>
   </head>
-
   <body>
-    <div class="bg"></div>
-    <div id="mural" class="mural" aria-hidden="true"></div>
+    <!-- Muro de fondo (collage por letras) -->
+    <div id="wall" class="wall" aria-hidden="true"></div>
 
-    <main class="wrap">
-      <header class="top">
-        <div>
-          <h1>Bingo Abecedario de Sole ✨</h1>
-          <p class="sub">
-            Elegimos una letra, raspás para revelar la actividad, y al completar suben una foto 📸💘
-          </p>
-        </div>
-
-        <div class="actions">
-          <button id="btnChange" class="btn primary">🔁 Cambiar letra</button>
-          <button id="btnSignOut" class="btn ghost" title="Salir">Salir</button>
-        </div>
-      </header>
-
-      <section class="panel">
-        <div class="row">
-          <div class="pill">Letra actual: <strong id="currentLetter">—</strong></div>
-          <div class="pill"><span id="doneCount">0</span>/<span id="totalCount">0</span> completadas</div>
-        </div>
-
-        <div id="authBox" class="authBox">
-          <h2>Entrar con Magic Link ✨</h2>
-          <p>Te mando un link al mail. Abrilo y volvés acá.</p>
-
-          <div class="authRow">
-            <input id="email" type="email" placeholder="tu mail" />
-            <button id="btnLogin" class="btn primary">Enviar link</button>
-          </div>
-
-          <div id="authMsg" class="authMsg"></div>
-        </div>
-
-        <div id="appBox" class="appBox hidden">
-          <div id="album" class="album"></div>
-        </div>
-      </section>
-
-      <footer class="foot">
-        <span>Feliz cumple amor! Te amo! 18.02.26 💖</span>
-      </footer>
-    </main>
-
-    <!-- Modal -->
-    <div id="modal" class="modal" aria-hidden="true">
-      <div class="modalCard" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-        <div class="modalHead">
-          <h2 id="modalTitle">Letra</h2>
-          <button id="btnClose" class="iconBtn" aria-label="Cerrar">✕</button>
-        </div>
-
-        <div class="scratchWrap">
-          <div class="letterBig" id="bigLetter">A</div>
-          <canvas id="scratch" aria-label="Raspar para revelar"></canvas>
-          <div class="hint" id="hint">Raspá con el mouse o el dedo 👆</div>
-        </div>
-
-        <div class="activity">
-          <div class="label">Actividad:</div>
-          <div id="activityText" class="activityText"></div>
-        </div>
-
-        <div class="photoBox">
-          <div class="label">Foto (obligatoria para completar):</div>
-          <input id="photoInput" type="file" accept="image/*" />
-          <div id="photoPreview" class="photoPreview hidden"></div>
-        </div>
-
-        <div class="modalActions">
-          <button id="btnReveal" class="btn ghost">👀 Revelar</button>
-          <button id="btnDone" class="btn primary" disabled>✅ Marcar como hecha</button>
-        </div>
-      </div>
-    </div>
+    <!-- App -->
+    <div id="app"></div>
 
     <script type="module" src="/src/main.js"></script>
   </body>
