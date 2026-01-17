@@ -283,3 +283,23 @@ h1{
   color: #b8ffcf;
   font-weight: 800;
 }
+/* ===== BLOQUEO HASTA LOGIN ===== */
+body.locked{
+  background: #070714; /* fondo liso mientras no haya session */
+}
+
+body.locked #app{
+  z-index: 5; /* el login siempre arriba */
+}
+
+/* opcional: si querés que el login tenga un fondo más "modal full-screen" */
+body.locked #app::before{
+  content:"";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(1200px 700px at 70% 0%, rgba(149, 72, 255, .18), transparent 60%),
+    radial-gradient(900px 600px at 20% 100%, rgba(32, 224, 255, .12), transparent 60%),
+    #070714;
+}
