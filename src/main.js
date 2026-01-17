@@ -1,3 +1,5 @@
+console.log("MAIN JS CARGÓ ✅");
+
 import "./style.css";
 import { LETTERS, ACTIVITIES } from "./activities.js";
 import { supabase, GAME_ID } from "./supabase.js";
@@ -35,7 +37,6 @@ const canvas = $("#scratch");
 const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
 // Estado
-let session = null;
 let letters = new Map(); // letter -> row
 let currentLetter = "A";
 
@@ -57,7 +58,8 @@ totalCountEl.textContent = LETTERS.length;
 // ---------- Auth ----------
 async function refreshSession() {
   const { data } = await supabase.auth.getSession();
-  session = data.session || null;
+  const session = data.session || null;
+
   if (session) {
     authBox.classList.add("hidden");
     appBox.classList.remove("hidden");
@@ -111,8 +113,6 @@ async function ensureSeed() {
       status: "todo"
     });
   }
-
-  // upsert masivo
   await supabase.from("letters").upsert(rows, { onConflict: "game_id,letter" });
 }
 
@@ -127,17 +127,15 @@ async function loadAll() {
   letters = new Map();
   for (const r of (l.data || [])) letters.set(r.letter, r);
 
-  renderAlbum();
+  await renderAlbum();
   updateStats();
 }
 
 // ---------- UI album ----------
 async function getThumbUrl(path) {
-  // archivo privado: usamos signed URL corto
   const { data, error } = await supabase.storage
     .from("bingo-photos")
     .createSignedUrl(path, 60 * 10); // 10 min
-
   if (error) return null;
   return data.signedUrl;
 }
@@ -167,17 +165,17 @@ async function renderAlbum() {
     if (row?.photo_path) {
       const url = await getThumbUrl(row.photo_path);
       if (url) thumb.style.backgroundImage = `url('${url}')`;
-    } else {
-      thumb.style.background = "rgba(0,0,0,.18)";
     }
 
     card.appendChild(top);
     card.appendChild(thumb);
-
     card.addEventListener("click", () => openLetter(L));
-
     album.appendChild(card);
   }
+
+  // ✅ clonamos el álbum al mural para el fondo collage
+  const mural = document.getElementById("mural");
+  if (mural) mural.innerHTML = album.outerHTML;
 }
 
 function updateStats() {
@@ -190,7 +188,6 @@ function updateStats() {
 
 // ---------- Cambiar letra ----------
 btnChange.addEventListener("click", async () => {
-  // elegimos una letra pendiente distinta a la actual
   const remaining = [];
   for (const L of LETTERS) {
     if (letters.get(L)?.status !== "done") remaining.push(L);
@@ -215,20 +212,19 @@ btnChange.addEventListener("click", async () => {
   openLetter(currentLetter);
 });
 
-// ---------- Modal letter ----------
+// ---------- Modal ----------
 function openModal() {
   modal.classList.add("show");
   modal.setAttribute("aria-hidden", "false");
 }
-
 function closeModal() {
   modal.classList.remove("show");
   modal.setAttribute("aria-hidden", "true");
 }
-
 btnClose.addEventListener("click", closeModal);
 modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
 
+// ---- reveal gradual de texto ----
 function setActivityMasked(revealCount) {
   const n = Math.max(0, Math.min(revealCount, activityChars.length));
   const shown = activityChars.slice(0, n).join("");
@@ -255,6 +251,7 @@ function setActivityProgress(percent) {
   }
 }
 
+// ---- Scratch layer ----
 function fitCanvasToCSS() {
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
@@ -364,12 +361,10 @@ photoInput.addEventListener("change", () => {
   const url = URL.createObjectURL(f);
   photoPreview.style.backgroundImage = `url('${url}')`;
   photoPreview.classList.remove("hidden");
-
   enableDoneIfReady();
 });
 
 function enableDoneIfReady() {
-  // obligatorio: actividad revelada + foto seleccionada (o ya subida)
   const ok = activityRevealed && (selectedFile || uploadedPath);
   btnDone.disabled = !ok;
 }
@@ -380,7 +375,6 @@ async function openLetter(L) {
   modalTitle.textContent = `Letra ${L}`;
   bigLetter.textContent = L;
 
-  // activity text viene de la DB para consistencia
   activityFull = row?.activity_text || "";
   activityChars = Array.from(activityFull);
   activityRevealed = false;
@@ -392,16 +386,16 @@ async function openLetter(L) {
   photoPreview.classList.add("hidden");
   photoPreview.style.backgroundImage = "";
 
-  // Si ya está done, mostramos todo y preview
   if (row?.status === "done") {
     activityRevealed = true;
     activityText.textContent = activityFull;
     btnDone.disabled = true;
-    hint.style.opacity = "0";
+
     resetScratchLayer();
-    // levantar el overlay
+    // levantar overlay
     ctx.globalCompositeOperation = "destination-out";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    hint.style.opacity = "0";
 
     if (row.photo_path) {
       const url = await getThumbUrl(row.photo_path);
@@ -411,7 +405,6 @@ async function openLetter(L) {
       }
     }
   } else {
-    // pendiente: oculto y scratch activo
     setActivityMasked(0);
     btnDone.disabled = true;
     resetScratchLayer();
@@ -426,7 +419,6 @@ btnDone.addEventListener("click", async () => {
   const L = bigLetter.textContent;
   const row = letters.get(L);
 
-  // subir foto si hace falta
   let path = uploadedPath;
 
   if (!path) {
@@ -446,7 +438,6 @@ btnDone.addEventListener("click", async () => {
     }
   }
 
-  // marcar done en DB
   const now = new Date().toISOString();
   const upd = await supabase
     .from("letters")
@@ -464,7 +455,6 @@ btnDone.addEventListener("click", async () => {
     return;
   }
 
-  // actualizar estado local
   letters.set(L, {
     ...(row || {}),
     game_id: GAME_ID,
@@ -481,5 +471,5 @@ btnDone.addEventListener("click", async () => {
   closeModal();
 });
 
-// ---------- init ----------
+// init
 await refreshSession();
