@@ -36,15 +36,22 @@ body{
     #070714;
 }
 
-.wallTile{
-  border-radius: 18px;
-  overflow: hidden;
-  position: relative;
-  border: 1px solid rgba(255,255,255,.07);
-  box-shadow: 0 18px 50px rgba(0,0,0,.35);
-  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-  cursor: pointer;
+.wall{
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 12px;
+  padding: 22px;
+  pointer-events: auto; /* <-- antes estaba none */
+  background:
+    radial-gradient(1200px 700px at 70% 0%, rgba(149, 72, 255, .18), transparent 60%),
+    radial-gradient(900px 600px at 20% 100%, rgba(32, 224, 255, .12), transparent 60%),
+    #070714;
 }
+
 
 /* foto */
 .wallTile::before{
@@ -59,6 +66,24 @@ body{
   transition: opacity .35s ease, transform .45s ease;
 }
 .wallTile.hasPhoto::before{ opacity:1; transform: scale(1); }
+.wallImg{
+  position:absolute;
+  left:0; right:0;
+  top:0;
+  bottom:34px;              /* deja espacio para el caption */
+  width:100%;
+  height:calc(100% - 34px);
+  object-fit: cover;
+  opacity:0;
+  transform: scale(1.03);
+  transition: opacity .35s ease, transform .45s ease;
+}
+
+.wallTile.hasPhoto .wallImg{
+  opacity:1;
+  transform: scale(1);
+}
+
 
 /* overlay */
 .wallTile::after{
@@ -309,3 +334,57 @@ h1{
 
 .err{ color: #ffb3b3; font-weight: 900; }
 .ok{ color: #b8ffcf; font-weight: 900; }
+
+.lightbox{
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(10px);
+}
+
+.lightboxCard{
+  width: min(980px, 94vw);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  border-radius: 22px;
+  background: rgba(15, 15, 28, .92);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 30px 120px rgba(0,0,0,.55);
+  padding: 16px;
+}
+
+.lbTop{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.lbTitle{
+  font-weight: 900;
+  font-size: 18px;
+}
+
+.lbImg{
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.25);
+  display:block;
+}
+
+.lbText{
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.22);
+  color: rgba(255,255,255,.90);
+  font-size: 15px;
+  line-height: 1.35;
+}
