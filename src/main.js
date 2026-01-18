@@ -6,10 +6,11 @@ import { supabase, GAME_ID } from "./supabase.js";
 const LETTERS = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","Ñ","O","P","Q","R","S","T","U","V","W","X","Y","Z"];
 
 let session = null;
+let completed = {}; // { A: { activity, photo_url } ... }
+
 let currentLetter = null;
 let currentActivity = "";
-let completed = {}; // { A: { activity, photo_url } ... }
-let wallReady = false;
+let revealedRatio = 0; // 0..1 (progreso del raspado)
 
 const $app = document.getElementById("app");
 
@@ -22,38 +23,63 @@ $app.innerHTML = `
         <p class="sub">Elegimos una letra, raspás para revelar la actividad, y al completar suben una foto 📸💞</p>
       </div>
       <div class="topBtns">
-        <button id="btnChange" class="btn primary">🔁 Cambiar letra</button>
         <button id="btnLogout" class="btn">Salir</button>
       </div>
     </div>
 
-    <div class="card">
-      <div class="metaRow">
-        <div class="pill" id="pillLetter">Letra actual: —</div>
-        <div class="pill" id="pillCount">0/27 completadas</div>
-      </div>
+    <div class="metaRow">
+      <div class="pill" id="pillCount">0/27 completadas</div>
+      <div class="pill" id="pillHint">Elegí una letra pendiente o jugá random 😈</div>
+    </div>
 
-      <div id="authBox">
-        <div class="authTitle">Entrar con Magic Link ✨</div>
-        <p class="authSub">Te mando un link al mail. Abrilo y volvés acá.</p>
-        <div class="row">
-          <input id="email" class="input" placeholder="tu mail" />
-          <button id="sendLink" class="btn primary">Enviar link</button>
+    <!-- AUTH -->
+    <div id="authBox" class="card">
+      <div class="authTitle">Entrar con Magic Link ✨</div>
+      <p class="authSub">Te mando un link al mail. Abrilo y volvés acá.</p>
+      <div class="row">
+        <input id="email" class="input" placeholder="tu mail" />
+        <button id="sendLink" class="btn primary">Enviar link</button>
+      </div>
+      <div id="authMsg" class="small"></div>
+    </div>
+
+    <!-- HOME (se ve tras login) -->
+    <div id="homeBox" class="homeBox hidden">
+      <button id="btnPlay" class="playBtn">🎉 A JUGAR!</button>
+      <div class="footerLove">Feliz cumple amor! Te amo! 18.02.26 💖</div>
+      <div id="homeMsg" class="small"></div>
+    </div>
+
+    <!-- MODAL JUEGO -->
+    <div id="gameModal" class="modalOverlay hidden" role="dialog" aria-modal="true">
+      <div class="modalCard">
+        <div class="modalHead">
+          <div class="modalTitle">Modo juego</div>
+          <button id="btnCloseModal" class="btn">Cerrar</button>
         </div>
-        <div id="authMsg" class="small"></div>
-      </div>
 
-      <div id="gameBox" class="hidden">
+        <div class="modeRow">
+          <button id="btnRandom" class="btn primary">🎲 Letra random</button>
+          <button id="btnChoose" class="btn">🅰️ Elegir letra</button>
+
+          <div id="chooseWrap" class="chooseWrap hidden">
+            <select id="letterSelect" class="input select">
+              <option value="">Elegí una letra…</option>
+            </select>
+            <button id="btnPickSelected" class="btn primary">Elegir</button>
+          </div>
+        </div>
+
         <div class="sectionTitle">Letra</div>
         <div class="letterBox">
           <div class="bigLetter" id="bigLetter">—</div>
           <div class="small" id="scratchHint">Raspá con el mouse o el dedo 👆</div>
         </div>
 
-        <canvas id="scratch" style="width:100%;height:140px;margin-top:12px;border-radius:18px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.22)"></canvas>
+        <canvas id="scratch" class="scratchCanvas"></canvas>
 
         <div class="sectionTitle">Actividad</div>
-        <div class="activityText" id="activityText">—</div>
+        <div class="activityText" id="activityText">Elegí una letra…</div>
 
         <div class="fileRow">
           <div class="small" style="min-width:230px;">Foto (obligatoria para completar):</div>
@@ -63,29 +89,52 @@ $app.innerHTML = `
 
         <div id="statusMsg" class="small"></div>
       </div>
-
-      <div class="footerLove">Feliz cumple amor! Te amo! 18.02.26 💖</div>
     </div>
   </div>
 `;
 
-/** ---------- WALL HELPERS (solo cuando hay sesión) ---------- */
+/** ---------- ELEMENTS ---------- */
+const elAuthBox = document.getElementById("authBox");
+const elHomeBox = document.getElementById("homeBox");
+const elHomeMsg = document.getElementById("homeMsg");
+
+const elEmail = document.getElementById("email");
+const elSendLink = document.getElementById("sendLink");
+const elAuthMsg = document.getElementById("authMsg");
+
+const elBtnLogout = document.getElementById("btnLogout");
+const elPillCount = document.getElementById("pillCount");
+
+const elBtnPlay = document.getElementById("btnPlay");
+
+const elModal = document.getElementById("gameModal");
+const elBtnCloseModal = document.getElementById("btnCloseModal");
+
+const elBtnRandom = document.getElementById("btnRandom");
+const elBtnChoose = document.getElementById("btnChoose");
+const elChooseWrap = document.getElementById("chooseWrap");
+const elLetterSelect = document.getElementById("letterSelect");
+const elBtnPickSelected = document.getElementById("btnPickSelected");
+
+const elBigLetter = document.getElementById("bigLetter");
+let elScratch = document.getElementById("scratch");
+const elActivityText = document.getElementById("activityText");
+
+const elPhoto = document.getElementById("photo");
+const elBtnComplete = document.getElementById("btnComplete");
+const elStatusMsg = document.getElementById("statusMsg");
+
+/** ---------- WALL ---------- */
 function showWall(visible) {
   const wall = document.getElementById("wall");
   if (!wall) return;
-
   wall.classList.toggle("hidden", !visible);
   wall.setAttribute("aria-hidden", String(!visible));
-
-  // opcional: estado para estilos tipo body.locked
-  document.body.classList.toggle("locked", !visible);
 }
 
-/** ---------- WALL INIT ---------- */
 function initWall() {
   const wall = document.getElementById("wall");
   if (!wall) return;
-
   wall.innerHTML = "";
 
   for (const letter of LETTERS) {
@@ -106,15 +155,29 @@ function initWall() {
     wall.appendChild(tile);
   }
 
-  wallReady = true;
+  // click para jugar esa letra (si está pendiente y hay sesión)
+  wall.addEventListener("click", (e) => {
+    const tile = e.target.closest?.(".wallTile");
+    if (!tile) return;
+    if (!session) return;
+
+    const letter = tile.dataset.letter;
+    if (!letter) return;
+
+    if (completed[letter]) {
+      elHomeMsg.textContent = `La letra ${letter} ya está completada 😌`;
+      return;
+    }
+
+    openGameModal();
+    pickLetter(letter);
+  });
 }
 
 /** setea foto en el tile + pie de foto */
 function setWallPhoto(letter, photoUrl, activityText) {
   const wall = document.getElementById("wall");
-  if (!wall) return;
-
-  const tile = wall.querySelector(`.wallTile[data-letter="${letter}"]`);
+  const tile = wall?.querySelector?.(`.wallTile[data-letter="${letter}"]`);
   if (!tile) return;
 
   tile.classList.add("hasPhoto");
@@ -144,56 +207,34 @@ function ensureWallStyle(letter, photoUrl) {
   styleTag.textContent = filtered.join("\n");
 }
 
-/** ---------- ELEMENTS ---------- */
-const elAuthBox = document.getElementById("authBox");
-const elGameBox = document.getElementById("gameBox");
-const elEmail = document.getElementById("email");
-const elSendLink = document.getElementById("sendLink");
-const elAuthMsg = document.getElementById("authMsg");
-
-const elBtnChange = document.getElementById("btnChange");
-const elBtnLogout = document.getElementById("btnLogout");
-
-const elPillLetter = document.getElementById("pillLetter");
-const elPillCount = document.getElementById("pillCount");
-const elBigLetter = document.getElementById("bigLetter");
-
-let elScratch = document.getElementById("scratch");
-const elActivityText = document.getElementById("activityText");
-const elPhoto = document.getElementById("photo");
-const elBtnComplete = document.getElementById("btnComplete");
-const elStatusMsg = document.getElementById("statusMsg");
-
 /** ---------- AUTH ---------- */
+function renderAuth() {
+  if (session) {
+    elAuthBox.classList.add("hidden");
+    elHomeBox.classList.remove("hidden");
+  } else {
+    elAuthBox.classList.remove("hidden");
+    elHomeBox.classList.add("hidden");
+    closeGameModal();
+  }
+}
+
 async function refreshSession() {
   const { data } = await supabase.auth.getSession();
   session = data.session || null;
 
   renderAuth();
-
-  // gating del fondo: solo cuando hay sesión
   showWall(!!session);
 
   if (session) {
-    // inicializar muro SOLO cuando hay sesión (y una sola vez)
-    if (!wallReady) initWall();
-
+    initWall();
     await loadGameState();
+    fillLetterSelect();
   } else {
-    // si no hay sesión, reseteo visual del muro por si venías de estar logueada
-    wallReady = false;
-    const wall = document.getElementById("wall");
-    if (wall) wall.innerHTML = "";
-  }
-}
-
-function renderAuth() {
-  if (session) {
-    elAuthBox.classList.add("hidden");
-    elGameBox.classList.remove("hidden");
-  } else {
-    elAuthBox.classList.remove("hidden");
-    elGameBox.classList.add("hidden");
+    completed = {};
+    currentLetter = null;
+    currentActivity = "";
+    renderPills();
   }
 }
 
@@ -203,7 +244,7 @@ elSendLink.addEventListener("click", async () => {
 
   elAuthMsg.textContent = "Enviando link…";
 
-  const redirectTo = window.location.origin; // ✅ importante para Vercel/localhost
+  const redirectTo = window.location.origin;
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: redirectTo }
@@ -220,41 +261,18 @@ elSendLink.addEventListener("click", async () => {
 /** Logout */
 elBtnLogout.addEventListener("click", async () => {
   await supabase.auth.signOut();
-
   session = null;
+  completed = {};
   currentLetter = null;
   currentActivity = "";
-  completed = {};
-
-  // ocultar muro y limpiar
   showWall(false);
-  wallReady = false;
-  const wall = document.getElementById("wall");
-  if (wall) wall.innerHTML = "";
-
-  renderPills();
-  resetScratch();
   renderAuth();
+  renderPills();
 });
 
 /** ---------- GAME STATE (SUPABASE) ---------- */
-/*
-  Requiere en Supabase:
-  - bucket storage: bingo-photos (public o signed, según lo tengas)
-  - tabla: bingo_entries
-    columnas:
-      id uuid default gen_random_uuid()
-      game_id text
-      user_id uuid
-      letter text
-      activity text
-      photo_url text
-      created_at timestamp default now()
-    UNIQUE (game_id, user_id, letter)
-*/
-
 async function loadGameState() {
-  elStatusMsg.textContent = "Cargando…";
+  elHomeMsg.textContent = "Cargando progreso…";
 
   const userId = session.user.id;
 
@@ -266,7 +284,7 @@ async function loadGameState() {
 
   if (error) {
     console.error(error);
-    elStatusMsg.textContent = "Error: Load failed";
+    elHomeMsg.textContent = "Error: Load failed";
     return;
   }
 
@@ -275,22 +293,47 @@ async function loadGameState() {
     completed[row.letter] = { activity: row.activity, photo_url: row.photo_url };
   }
 
-  // pintar muro (si el muro existe)
-  if (wallReady) {
-    for (const letter of Object.keys(completed)) {
-      setWallPhoto(letter, completed[letter].photo_url, completed[letter].activity);
-    }
+  // pintar muro
+  for (const letter of Object.keys(completed)) {
+    setWallPhoto(letter, completed[letter].photo_url, completed[letter].activity);
   }
 
-  // elegir letra actual
-  if (!currentLetter) pickNextLetter();
-
   renderPills();
-  elStatusMsg.textContent = "";
+  elHomeMsg.textContent = "";
 }
 
-/** ---------- PICK LETTER ---------- */
-function pickNextLetter() {
+/** ---------- HOME / MODAL ---------- */
+function openGameModal() {
+  elModal.classList.remove("hidden");
+  elStatusMsg.textContent = "";
+  elPhoto.value = "";
+  elChooseWrap.classList.add("hidden");
+}
+
+function closeGameModal() {
+  elModal.classList.add("hidden");
+}
+
+elBtnPlay.addEventListener("click", () => {
+  if (!session) return;
+  openGameModal();
+});
+
+elBtnCloseModal.addEventListener("click", closeGameModal);
+
+// cerrar tocando afuera
+elModal.addEventListener("click", (e) => {
+  if (e.target === elModal) closeGameModal();
+});
+
+/** ---------- LETRAS: random o elegir ---------- */
+function fillLetterSelect() {
+  const pending = LETTERS.filter(l => !completed[l]);
+  elLetterSelect.innerHTML = `<option value="">Elegí una letra…</option>` +
+    pending.map(l => `<option value="${l}">${l}</option>`).join("");
+}
+
+function pickRandomLetter() {
   const pending = LETTERS.filter(l => !completed[l]);
   if (pending.length === 0) {
     currentLetter = null;
@@ -298,34 +341,49 @@ function pickNextLetter() {
     elBigLetter.textContent = "💜";
     elActivityText.textContent = "¡Completaron todo! 🥹";
     resetScratch();
-    renderPills();
     return;
   }
+  const letter = pending[Math.floor(Math.random() * pending.length)];
+  pickLetter(letter);
+}
 
-  // random dentro de pendientes
-  currentLetter = pending[Math.floor(Math.random() * pending.length)];
+function pickLetter(letter) {
+  if (!letter) return;
+
+  currentLetter = letter;
   currentActivity = ACTIVITIES[currentLetter] || "Actividad sorpresa 💫";
 
   elBigLetter.textContent = currentLetter;
   elActivityText.textContent = "Raspá para revelar 👆";
+
   resetScratch();
-  renderPills();
+  fillLetterSelect();
 }
 
-elBtnChange.addEventListener("click", () => {
+elBtnRandom.addEventListener("click", () => {
   if (!session) return;
-  pickNextLetter();
+  pickRandomLetter();
 });
 
-/** ---------- SCRATCH (raspar) ---------- */
+elBtnChoose.addEventListener("click", () => {
+  elChooseWrap.classList.toggle("hidden");
+});
+
+elBtnPickSelected.addEventListener("click", () => {
+  const v = elLetterSelect.value;
+  if (!v) return;
+  pickLetter(v);
+});
+
+/** ---------- SCRATCH (revela de a poco) ---------- */
 let isDown = false;
-let revealed = false;
+let rafPending = false;
 
 function setupScratch() {
   const canvas = elScratch;
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-  // tamaño real
+  // tamaño responsivo
   const rect = canvas.getBoundingClientRect();
   canvas.width = Math.floor(rect.width * devicePixelRatio);
   canvas.height = Math.floor(rect.height * devicePixelRatio);
@@ -338,14 +396,14 @@ function setupScratch() {
   ctx.fillStyle = "rgba(255,255,255,.18)";
   ctx.fillRect(0, 0, rect.width, rect.height);
 
-  // texto “RASPA”
+  // texto “RASPÁ”
   ctx.fillStyle = "rgba(0,0,0,.25)";
   ctx.font = "800 22px ui-sans-serif, system-ui";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("RASPÁ", rect.width / 2, rect.height / 2);
 
-  // ahora raspamos
+  // raspamos
   ctx.globalCompositeOperation = "destination-out";
 
   function draw(x, y) {
@@ -366,14 +424,14 @@ function setupScratch() {
     isDown = true;
     const { x, y } = getXY(e);
     draw(x, y);
-    checkReveal();
+    scheduleProgress();
   }
 
   function onMove(e) {
     if (!isDown) return;
     const { x, y } = getXY(e);
     draw(x, y);
-    checkReveal();
+    scheduleProgress();
   }
 
   function onUp() { isDown = false; }
@@ -386,18 +444,59 @@ function setupScratch() {
   canvas.addEventListener("touchmove", onMove, { passive: true });
   window.addEventListener("touchend", onUp);
 
-  function checkReveal() {
-    if (revealed) return;
-    // tu lógica “simple” para revelar
-    revealed = true;
-    elActivityText.textContent = currentActivity;
+  function scheduleProgress() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+      rafPending = false;
+      updateRevealProgress(ctx, rect.width, rect.height);
+    });
   }
 }
 
-function resetScratch() {
-  revealed = false;
+function updateRevealProgress(ctx, w, h) {
+  if (!currentLetter) return;
 
-  // reemplaza canvas para limpiar listeners
+  // muestreo liviano (no pixel por pixel)
+  const step = 10; // cuanto más alto, más rápido pero menos preciso
+  const img = ctx.getImageData(0, 0, w, h).data;
+
+  let total = 0;
+  let cleared = 0;
+
+  for (let y = 0; y < h; y += step) {
+    for (let x = 0; x < w; x += step) {
+      const idx = (y * w + x) * 4 + 3; // alpha
+      total++;
+      if (img[idx] === 0) cleared++;
+    }
+  }
+
+  revealedRatio = total ? (cleared / total) : 0;
+
+  // Revelado progresivo del texto:
+  // - hasta 15%: sigue “raspá…”
+  // - de 15% a 70%: aparece de a poco
+  // - >70%: full
+  if (revealedRatio < 0.15) {
+    elActivityText.textContent = "Raspá para revelar 👆";
+    return;
+  }
+
+  const start = 0.15;
+  const end = 0.70;
+  const t = Math.min(1, Math.max(0, (revealedRatio - start) / (end - start)));
+
+  const full = currentActivity;
+  const n = Math.max(1, Math.floor(full.length * t));
+  const partial = full.slice(0, n) + (t < 1 ? "…" : "");
+
+  elActivityText.textContent = partial;
+}
+
+function resetScratch() {
+  revealedRatio = 0;
+
   const old = document.getElementById("scratch");
   if (!old) return;
 
@@ -416,8 +515,9 @@ elBtnComplete.addEventListener("click", async () => {
   if (!session) return;
   if (!currentLetter) return;
 
-  if (!revealed) {
-    elStatusMsg.innerHTML = `<span class="err">Primero raspá para revelar 😌</span>`;
+  // obligamos a raspar un poco para que “cuente”
+  if (revealedRatio < 0.15) {
+    elStatusMsg.innerHTML = `<span class="err">Primero raspá un poquito para revelar 😌</span>`;
     return;
   }
 
@@ -434,20 +534,17 @@ elBtnComplete.addEventListener("click", async () => {
     const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
     const path = `${GAME_ID}/${userId}/${currentLetter}-${Date.now()}.${ext}`;
 
-    // sube al bucket
     const { error: upErr } = await supabase.storage
       .from("bingo-photos")
       .upload(path, file, { upsert: true });
 
     if (upErr) throw upErr;
 
-    // obtener URL pública (si el bucket es PUBLIC)
     const { data: pub } = supabase.storage.from("bingo-photos").getPublicUrl(path);
     const photoUrl = pub.publicUrl;
 
     elStatusMsg.textContent = "Guardando…";
 
-    // upsert en tabla
     const { error: dbErr } = await supabase
       .from("bingo_entries")
       .upsert({
@@ -460,17 +557,25 @@ elBtnComplete.addEventListener("click", async () => {
 
     if (dbErr) throw dbErr;
 
-    // actualizar local + muro
     completed[currentLetter] = { activity: currentActivity, photo_url: photoUrl };
-    if (wallReady) setWallPhoto(currentLetter, photoUrl, currentActivity);
+    setWallPhoto(currentLetter, photoUrl, currentActivity);
 
-    // limpiar input
     elPhoto.value = "";
-
     elStatusMsg.innerHTML = `<span class="ok">Listo 💜 Guardado.</span>`;
 
-    // siguiente letra
-    pickNextLetter();
+    renderPills();
+    fillLetterSelect();
+
+    // opcional: cerrar modal al completar
+    // closeGameModal();
+
+    // o seguir jugando con otra letra
+    currentLetter = null;
+    currentActivity = "";
+    elBigLetter.textContent = "—";
+    elActivityText.textContent = "Elegí una letra…";
+    resetScratch();
+
   } catch (e) {
     console.error(e);
     elStatusMsg.innerHTML = `<span class="err">Error: ${e.message || "Load failed"}</span>`;
@@ -478,7 +583,6 @@ elBtnComplete.addEventListener("click", async () => {
 });
 
 function renderPills() {
-  elPillLetter.textContent = `Letra actual: ${currentLetter || "—"}`;
   const count = Object.keys(completed).length;
   elPillCount.textContent = `${count}/27 completadas`;
 }
