@@ -432,38 +432,38 @@ function updateRevealProgress(canvas, ctx) {
   const w = canvas.width;
   const h = canvas.height;
 
-  // muestreo un poco más sensible
-  const step = Math.max(6, Math.floor((window.devicePixelRatio || 1) * 8));
+  // Muestreo estable (más fino = más exacto, más pesado)
+  // 8 suele ser perfecto; si va lento en celu, subilo a 10/12.
+  const step = 8;
+
   const img = ctx.getImageData(0, 0, w, h).data;
 
   let total = 0;
   let cleared = 0;
 
+  // OJO: trabajamos en pixeles reales del canvas (w/h), no CSS px.
   for (let y = 0; y < h; y += step) {
     for (let x = 0; x < w; x += step) {
-      const idx = (y * w + x) * 4 + 3;
+      const a = img[(y * w + x) * 4 + 3]; // alpha
       total++;
-      if (img[idx] === 0) cleared++;
+      // cuando borrás con destination-out, alpha tiende a 0
+      if (a < 20) cleared++; // tolerancia (no uses a===0, a veces queda 1-10)
     }
   }
 
   revealedRatio = total ? (cleared / total) : 0;
 
-  // ✅ REVELADO PROGRESIVO (más fácil de activar)
-  const start = 0.02; // antes era muy alto
-  const end = 0.35;
+  // ✅ TU REGLA: mostrar actividad recién al 60%
+  const THRESHOLD = 0.60;
 
-  if (revealedRatio < start) {
+  if (revealedRatio < THRESHOLD) {
     elActivityText.textContent = "Raspá para revelar 👆";
     return;
   }
 
-  const t = Math.min(1, Math.max(0, (revealedRatio - start) / (end - start)));
-  const full = currentActivity || "Actividad sorpresa 💫";
-  const n = Math.max(1, Math.floor(full.length * t));
-
-  elActivityText.textContent = full.slice(0, n) + (t < 1 ? "…" : "");
+  elActivityText.textContent = currentActivity || "Actividad sorpresa 💫";
 }
+
 
 function resetScratch() {
   revealedRatio = 0;
