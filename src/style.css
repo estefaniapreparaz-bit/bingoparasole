@@ -1,4 +1,222 @@
 /* =========================
+   BASE (Loop-ish)
+   ========================= */
+:root{
+  --bg: #070714;
+  --card: rgba(15, 15, 30, .68);
+  --card2: rgba(0,0,0,.22);
+  --stroke: rgba(255,255,255,.10);
+  --stroke2: rgba(255,255,255,.14);
+  --txt: rgba(255,255,255,.92);
+  --muted: rgba(255,255,255,.72);
+  --muted2: rgba(255,255,255,.55);
+  --shadow: 0 30px 120px rgba(0,0,0,.55);
+  --r: 22px;
+}
+
+*{ box-sizing:border-box; }
+html, body{ height:100%; }
+
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  color: var(--txt);
+  background: var(--bg);
+}
+
+/* tu app arriba del wall */
+#app{
+  position: relative;
+  z-index: 5;
+  min-height: 100vh;
+}
+
+/* layout */
+.appShell{
+  max-width: 980px;
+  margin: 26px auto;
+  padding: 0 16px 28px;
+}
+
+.headerRow{
+  display:flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+h1{
+  margin:0;
+  font-size: 42px;
+  letter-spacing: -0.02em;
+}
+
+.sub{
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+/* card */
+.card{
+  border-radius: var(--r);
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+  padding: 16px;
+}
+
+/* top buttons */
+.topBtns{ display:flex; gap:10px; }
+
+/* pills */
+.metaRow{
+  display:flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.pill{
+  padding: 9px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: rgba(255,255,255,.06);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+/* inputs / row */
+.row{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.input{
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: rgba(0,0,0,.22);
+  color: var(--txt);
+  outline: none;
+  width: min(320px, 100%);
+}
+
+.input:focus{
+  border-color: rgba(149, 72, 255, .55);
+  box-shadow: 0 0 0 3px rgba(149, 72, 255, .18);
+}
+
+.btn{
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: rgba(255,255,255,.06);
+  color: var(--txt);
+  font-weight: 800;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap: 8px;
+  user-select:none;
+}
+
+.btn:hover{
+  border-color: rgba(255,255,255,.22);
+  transform: translateY(-1px);
+}
+
+.btn:active{
+  transform: translateY(0);
+}
+
+.btn.primary{
+  border-color: rgba(149, 72, 255, .45);
+  background: linear-gradient(180deg, rgba(149,72,255,.28), rgba(149,72,255,.12));
+}
+
+.small{
+  font-size: 13px;
+  color: var(--muted2);
+}
+
+.authTitle{
+  font-weight: 900;
+  font-size: 16px;
+}
+
+.authSub{
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.sectionTitle{
+  margin-top: 14px;
+  font-weight: 900;
+  color: rgba(255,255,255,.86);
+}
+
+.letterBox{
+  margin-top: 8px;
+  border-radius: 18px;
+  border: 1px solid var(--stroke);
+  background: rgba(0,0,0,.22);
+  padding: 12px;
+}
+
+.bigLetter{
+  font-size: 54px;
+  font-weight: 1000;
+  letter-spacing: .02em;
+  line-height: 1;
+}
+
+.activityText{
+  margin-top: 10px;
+  border-radius: 18px;
+  border: 1px solid var(--stroke);
+  background: rgba(0,0,0,.22);
+  padding: 12px 14px;
+  min-height: 52px;
+  color: rgba(255,255,255,.90);
+  line-height: 1.35;
+}
+
+.fileRow{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.fileInput{
+  max-width: 360px;
+  color: var(--muted);
+}
+
+.footerLove{
+  margin-top: 14px;
+  text-align:center;
+  font-weight: 900;
+  color: rgba(255,255,255,.80);
+}
+
+.ok{ color: rgba(120,255,170,.92); font-weight: 900; }
+.err{ color: rgba(255,120,150,.92); font-weight: 900; }
+
+.hidden{ display:none !important; }
+
+/* =========================
    WALL / TILES (FIX FINAL)
    ========================= */
 
@@ -6,12 +224,16 @@
   position: fixed;
   inset: 0;
   z-index: 0;
+
   display: grid;
   grid-template-columns: repeat(9, 1fr);
   grid-template-rows: repeat(3, 1fr);
   gap: 12px;
   padding: 22px;
-  pointer-events: none;
+
+  /* ✅ importante: el wall puede recibir eventos,
+     pero los tiles NO, salvo los "clickable" */
+  pointer-events: auto;
 
   background:
     radial-gradient(1200px 700px at 70% 0%, rgba(149, 72, 255, .18), transparent 60%),
@@ -20,12 +242,15 @@
 }
 
 .wallTile{
-  position: relative;          /* CLAVE: evita que el img se vaya al body */
-  overflow: hidden;            /* recorta la foto dentro del tile */
+  position: relative;
+  overflow: hidden;
   border-radius: 18px;
   border: 1px solid rgba(255,255,255,.07);
   box-shadow: 0 18px 50px rgba(0,0,0,.35);
   background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+
+  /* ✅ por defecto NO clickeable */
+  pointer-events: none;
 }
 
 /* imagen real */
@@ -33,7 +258,7 @@
   position: absolute;
   left: 0; right: 0;
   top: 0;
-  bottom: 34px;               /* deja espacio para el caption */
+  bottom: 34px;
   width: 100%;
   height: calc(100% - 34px);
   object-fit: cover;
@@ -101,7 +326,7 @@
   color: rgba(255,255,255,.96);
 }
 
-/* click habilitado SOLO cuando hay foto */
+/* ✅ click habilitado SOLO cuando hay foto */
 .wallTile.clickable{
   pointer-events: auto;
   cursor: pointer;
@@ -167,9 +392,9 @@
 }
 
 @media (max-width: 860px){
-  .lightboxBody{
-    grid-template-columns: 1fr;
-  }
+  .lightboxBody{ grid-template-columns: 1fr; }
+  h1{ font-size: 34px; }
+  .wall{ grid-template-columns: repeat(6, 1fr); grid-template-rows: auto; }
 }
 
 .lightboxImgWrap{
@@ -205,5 +430,3 @@
   font-size: 14px;
   color: rgba(255,255,255,.85);
 }
-
-.hidden{ display:none !important; }

@@ -109,9 +109,20 @@ $app.innerHTML = `
   </div>
 `;
 
+/** ---------- WALL VISIBILITY ---------- */
+function showWall(on = true){
+  const wall = document.getElementById("wall");
+  if (!wall) return;
+  wall.classList.toggle("hidden", !on);
+  wall.setAttribute("aria-hidden", String(!on));
+}
+
 /** ---------- WALL INIT ---------- */
 function initWall() {
   const wall = document.getElementById("wall");
+  if (!wall) return;
+
+  showWall(true);
   wall.innerHTML = "";
 
   for (const letter of LETTERS) {
@@ -125,7 +136,6 @@ function initWall() {
     img.loading = "lazy";
     img.decoding = "async";
 
-    // si falla la imagen, no rompas nada
     img.addEventListener("error", () => {
       tile.classList.remove("hasPhoto");
       tile.classList.remove("clickable");
@@ -156,6 +166,8 @@ initWall();
 /** setea foto en el tile + pie de foto */
 function setWallPhoto(letter, photoUrl, activityText) {
   const wall = document.getElementById("wall");
+  if (!wall) return;
+
   const tile = wall.querySelector(`.wallTile[data-letter="${letter}"]`);
   if (!tile) return;
 
@@ -166,7 +178,8 @@ function setWallPhoto(letter, photoUrl, activityText) {
   tile.classList.add("clickable");
 
   const txt = tile.querySelector(".wallCaption .txt");
-  if (txt) txt.textContent = (activityText || "Completada 💜").slice(0, 24) + ((activityText || "").length > 24 ? "…" : "");
+  const t = (activityText || "Completada 💜");
+  if (txt) txt.textContent = t.slice(0, 24) + (t.length > 24 ? "…" : "");
 }
 
 /** ---------- LIGHTBOX ---------- */
@@ -200,8 +213,8 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeLightbox();
 });
 
-// click en tiles con foto
-document.getElementById("wall").addEventListener("click", (e) => {
+// click en tiles con foto (captura en el wall)
+document.getElementById("wall")?.addEventListener("click", (e) => {
   const tile = e.target.closest(".wallTile");
   if (!tile) return;
   const letter = tile.dataset.letter;
@@ -239,15 +252,12 @@ async function refreshSession() {
   const { data } = await supabase.auth.getSession();
   session = data.session || null;
   renderAuth();
-  if (session) {
-    await loadGameState();
-  }
+  if (session) await loadGameState();
 }
 
 function renderAuth() {
   if (session) {
     elAuthBox.classList.add("hidden");
-    // gameBox se abre con A JUGAR
   } else {
     elAuthBox.classList.remove("hidden");
     elGameBox.classList.add("hidden");
@@ -289,7 +299,7 @@ elBtnLogout.addEventListener("click", async () => {
 
 /** ---------- GAME OPEN/CLOSE ---------- */
 elBtnPlay.addEventListener("click", () => {
-  if (!session) return; // si no está logueada, queda el auth box visible
+  if (!session) return;
   elGameBox.classList.remove("hidden");
 });
 
@@ -316,14 +326,12 @@ async function loadGameState() {
   }
 
   completed = {};
-
-  // recrear muro limpio
   initWall();
 
   for (const row of data || []) {
     let viewUrl = row.photo_url || "";
 
-    // ✅ signed URL para BUCKET PRIVATE (y también anda si es public)
+    // signed URL para BUCKET PRIVATE
     if (row.photo_path) {
       const { data: signed, error: signErr } = await supabase.storage
         .from("bingo-photos")
@@ -342,8 +350,6 @@ async function loadGameState() {
 
   renderPills();
   elStatusMsg.textContent = "";
-
-  // llenar select con pendientes
   fillLetterSelect();
 }
 
@@ -355,7 +361,9 @@ function renderPills() {
 
 function fillLetterSelect() {
   const pending = LETTERS.filter(l => !completed[l]);
-  elLetterSelect.innerHTML = `<option value="">Elegí una letra...</option>` + pending.map(l => `<option value="${l}">${l}</option>`).join("");
+  elLetterSelect.innerHTML =
+    `<option value="">Elegí una letra...</option>` +
+    pending.map(l => `<option value="${l}">${l}</option>`).join("");
 }
 
 /** ---------- PICK LETTER ---------- */
@@ -407,7 +415,6 @@ function setupScratch() {
   const canvas = elScratch;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-  // tamaño real
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
 
@@ -416,19 +423,16 @@ function setupScratch() {
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  // capa gris
   ctx.globalCompositeOperation = "source-over";
   ctx.fillStyle = "rgba(255,255,255,.18)";
   ctx.fillRect(0, 0, rect.width, rect.height);
 
-  // texto “RASPA”
   ctx.fillStyle = "rgba(0,0,0,.25)";
   ctx.font = "800 22px ui-sans-serif, system-ui";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("RASPÁ", rect.width/2, rect.height/2);
 
-  // borrar con destination-out
   ctx.globalCompositeOperation = "destination-out";
 
   function draw(x, y) {
@@ -476,7 +480,6 @@ function updateRevealProgress(canvas, ctx) {
   const w = canvas.width;
   const h = canvas.height;
 
-  // muestreo estable
   const step = 8;
   const img = ctx.getImageData(0, 0, w, h).data;
 
@@ -505,7 +508,6 @@ function updateRevealProgress(canvas, ctx) {
 function resetScratch() {
   revealedRatio = 0;
 
-  // rearmar canvas (limpia listeners)
   const old = elScratch;
   const parent = old.parentElement;
   const fresh = old.cloneNode(true);
@@ -540,14 +542,12 @@ elBtnComplete.addEventListener("click", async () => {
     const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
     const path = `${GAME_ID}/${userId}/${currentLetter}-${Date.now()}.${ext}`;
 
-    // sube al bucket
     const { error: upErr } = await supabase.storage
       .from("bingo-photos")
       .upload(path, file, { upsert: true });
 
     if (upErr) throw upErr;
 
-    // ✅ signed URL (funciona con bucket PRIVATE)
     const { data: signed, error: signErr } = await supabase.storage
       .from("bingo-photos")
       .createSignedUrl(path, 60 * 60 * 24 * 7);
@@ -558,7 +558,6 @@ elBtnComplete.addEventListener("click", async () => {
 
     elStatusMsg.textContent = "Guardando…";
 
-    // upsert en tabla (guarda path y url)
     const { error: dbErr } = await supabase
       .from("bingo_entries")
       .upsert({
@@ -572,19 +571,13 @@ elBtnComplete.addEventListener("click", async () => {
 
     if (dbErr) throw dbErr;
 
-    // actualizar local + muro
     completed[currentLetter] = { activity: currentActivity, photo_url: photoUrl, photo_path: path };
     setWallPhoto(currentLetter, photoUrl, currentActivity);
 
-    // limpiar input
     elPhoto.value = "";
-
     elStatusMsg.innerHTML = `<span class="ok">Listo 💜 Guardado.</span>`;
 
-    // refrescar select pendientes
     fillLetterSelect();
-
-    // elegir nueva letra random para seguir jugando (opcional)
     pickRandomPendingLetter();
   } catch (e) {
     console.error(e);
