@@ -19,6 +19,8 @@ body{
   overflow-x:hidden;
 }
 
+.hidden{ display:none !important; }
+
 /* ===== MURO / COLLAGE DE FONDO ===== */
 .wall{
   position: fixed;
@@ -29,7 +31,7 @@ body{
   grid-template-rows: repeat(3, 1fr);
   gap: 12px;
   padding: 22px;
-  pointer-events: none;
+  pointer-events: auto;
 
   background:
     radial-gradient(1200px 700px at 70% 0%, rgba(149, 72, 255, .18), transparent 60%),
@@ -44,6 +46,7 @@ body{
   border: 1px solid rgba(255,255,255,.07);
   box-shadow: 0 18px 50px rgba(0,0,0,.35);
   background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+  cursor: pointer;
 }
 
 /* foto (arriba) */
@@ -113,25 +116,33 @@ body{
 }
 
 /* ===== APP ===== */
-  #app{
+#app{
   position: relative;
   z-index: 2;
   min-height: 100vh;
-  display: block;          /* antes: grid */
-  padding: 22px 16px;      /* un toque más prolijo */
+  padding: 18px 16px;
 }
-
 
 .appShell{
   width: min(980px, 92vw);
+  margin: 0 auto;
 }
 
-.headerRow{
+/* Header pegadito arriba (lo que querías) */
+.appHeader{
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 16px 0 12px;
+  backdrop-filter: blur(14px);
+  background: linear-gradient(180deg, rgba(7,7,20,.78), rgba(7,7,20,.35) 70%, rgba(7,7,20,0));
+}
+
+.headerTop{
   display:flex;
   align-items:flex-start;
   justify-content:space-between;
   gap: 16px;
-  margin-bottom: 18px;
 }
 
 h1{
@@ -146,9 +157,10 @@ h1{
   font-size: 16px;
 }
 
-.topBtns{
+.headerActions{
   display:flex;
   gap: 10px;
+  align-items:center;
 }
 
 .btn{
@@ -167,20 +179,18 @@ h1{
   border-color: rgba(255,255,255,.16);
 }
 
-.card{
-  border-radius: var(--radius);
-  background: rgba(255,255,255,.05);
-  border: 1px solid rgba(255,255,255,.10);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(14px);
-  padding: 18px;
+.btn.play{
+  padding: 12px 18px;
+  border-radius: 16px;
+  font-weight: 900;
 }
 
+/* Pills debajo del título */
 .metaRow{
   display:flex;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-top: 14px;
 }
 
 .pill{
@@ -192,6 +202,17 @@ h1{
   font-weight: 700;
 }
 
+/* Card auth */
+.card{
+  border-radius: var(--radius);
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.10);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  padding: 18px;
+  margin-top: 16px;
+}
+
 .authTitle{
   font-size: 22px;
   margin: 10px 0 6px;
@@ -200,11 +221,13 @@ h1{
   margin: 0 0 12px;
   color: var(--muted);
 }
+
 .row{
   display:flex;
   gap: 10px;
   align-items:center;
 }
+
 .input{
   flex:1;
   border-radius: 14px;
@@ -214,6 +237,7 @@ h1{
   padding: 12px 14px;
   outline:none;
 }
+
 .small{
   font-size: 13px;
   color: rgba(255,255,255,.70);
@@ -227,119 +251,24 @@ h1{
   font-weight: 700;
 }
 
-/* area de letra + actividad */
-.sectionTitle{
-  font-size: 18px;
-  margin: 18px 0 10px;
-  color: rgba(255,255,255,.86);
-}
-
-.letterBox{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding: 14px 16px;
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(0,0,0,.20);
-}
-
-.bigLetter{
-  font-size: 46px;
-  font-weight: 900;
-  letter-spacing: .04em;
-}
-
-.activityText{
-  margin: 12px 0 0;
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(0,0,0,.22);
-  color: rgba(255,255,255,.88);
-}
-
-.hidden{ display:none !important; }
-
-.fileRow{
-  margin-top: 12px;
-  display:flex;
-  gap: 10px;
-  align-items:center;
-  flex-wrap: wrap;
-}
-
-.fileInput{
-  color: rgba(255,255,255,.85);
-}
-
-.err{
-  margin-top: 10px;
-  color: #ffb3b3;
-  font-weight: 800;
-}
-.ok{
-  margin-top: 10px;
-  color: #b8ffcf;
-  font-weight: 800;
-}
-/* ===== BLOQUEO HASTA LOGIN ===== */
-body.locked{
-  background: #070714; /* fondo liso mientras no haya session */
-}
-
-body.locked #app{
-  z-index: 5; /* el login siempre arriba */
-}
-
-/* opcional: si querés que el login tenga un fondo más "modal full-screen" */
-body.locked #app::before{
-  content:"";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(1200px 700px at 70% 0%, rgba(149, 72, 255, .18), transparent 60%),
-    radial-gradient(900px 600px at 20% 100%, rgba(32, 224, 255, .12), transparent 60%),
-    #070714;
-}
-.homeBox{
-  display:flex;
-  flex-direction: column;
-  gap: 14px;
-  align-items: center;
-  margin-top: 14px;
-}
-
-.playBtn{
-  width: min(520px, 92vw);
-  padding: 16px 18px;
-  border-radius: 18px;
-  font-weight: 900;
-  font-size: 18px;
-  cursor: pointer;
-  border: 1px solid rgba(255,255,255,.16);
-  background: linear-gradient(135deg, rgba(202, 80, 255, .40), rgba(70, 120, 255, .24));
-  color: rgba(255,255,255,.94);
-  box-shadow: 0 24px 90px rgba(0,0,0,.45);
-}
-.playBtn:hover{ transform: translateY(-1px); }
-
+/* ===== MODAL “sheet” debajo del header ===== */
 .modalOverlay{
   position: fixed;
   inset: 0;
   z-index: 99;
   display: grid;
-  place-items: center;
-  padding: 18px;
-  background: rgba(0,0,0,.45);
+  place-items: start center;
+  padding: 130px 16px 16px; /* 👈 aparece debajo del header */
+  background: rgba(0,0,0,.42);
   backdrop-filter: blur(10px);
 }
 
 .modalCard{
-  width: min(820px, 94vw);     /* más chico */
+  width: min(980px, 92vw);
+  max-height: calc(100vh - 160px);
+  overflow: auto;
   border-radius: var(--radius);
-  background: rgba(15, 15, 28, .82);
+  background: rgba(15, 15, 28, .84);
   border: 1px solid rgba(255,255,255,.12);
   box-shadow: var(--shadow);
   padding: 16px;
@@ -378,12 +307,68 @@ body.locked #app::before{
   min-width: 220px;
 }
 
+/* Area de letra + actividad */
+.sectionTitle{
+  font-size: 18px;
+  margin: 18px 0 10px;
+  color: rgba(255,255,255,.86);
+}
+
+.letterBox{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.20);
+}
+
+.bigLetter{
+  font-size: 46px;
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+
+.activityText{
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.22);
+  color: rgba(255,255,255,.88);
+}
+
+/* Scratch canvas */
 .scratchCanvas{
   width: 100%;
-  height: 140px;
+  height: 130px;
   margin-top: 12px;
   border-radius: 18px;
   border: 1px solid rgba(255,255,255,.10);
   background: rgba(0,0,0,.22);
 }
 
+/* Upload row */
+.fileRow{
+  margin-top: 12px;
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex-wrap: wrap;
+}
+
+.fileInput{
+  color: rgba(255,255,255,.85);
+}
+
+.err{
+  margin-top: 10px;
+  color: #ffb3b3;
+  font-weight: 800;
+}
+.ok{
+  margin-top: 10px;
+  color: #b8ffcf;
+  font-weight: 800;
+}

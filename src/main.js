@@ -10,26 +10,30 @@ let completed = {}; // { A: { activity, photo_url } ... }
 
 let currentLetter = null;
 let currentActivity = "";
-let revealedRatio = 0; // 0..1 (progreso del raspado)
+let revealedRatio = 0;
 
 const $app = document.getElementById("app");
 
-/** ---------- UI BASE ---------- */
+/** ---------- UI ---------- */
 $app.innerHTML = `
   <div class="appShell">
-    <div class="headerRow">
-      <div>
-        <h1>Bingo Abecedario de Sole ✨</h1>
-        <p class="sub">Elegimos una letra, raspás para revelar la actividad, y al completar suben una foto 📸💞</p>
-      </div>
-      <div class="topBtns">
-        <button id="btnLogout" class="btn">Salir</button>
-      </div>
-    </div>
+    <div class="appHeader">
+      <div class="headerTop">
+        <div>
+          <h1>Bingo Abecedario de Sole ✨</h1>
+          <p class="sub">Elegimos una letra, raspás para revelar la actividad, y al completar suben una foto 📸💞</p>
 
-    <div class="metaRow">
-      <div class="pill" id="pillCount">0/27 completadas</div>
-      <div class="pill" id="pillHint">Elegí una letra pendiente o jugá random 😈</div>
+          <div class="metaRow">
+            <div class="pill" id="pillCount">0/27 completadas</div>
+            <div class="pill" id="pillHint">Elegí una letra pendiente o jugá random 😈</div>
+          </div>
+        </div>
+
+        <div class="headerActions">
+          <button id="btnPlay" class="btn primary play hidden">🎉 A JUGAR!</button>
+          <button id="btnLogout" class="btn hidden">Salir</button>
+        </div>
+      </div>
     </div>
 
     <!-- AUTH -->
@@ -43,12 +47,7 @@ $app.innerHTML = `
       <div id="authMsg" class="small"></div>
     </div>
 
-    <!-- HOME (se ve tras login) -->
-    <div id="homeBox" class="homeBox hidden">
-      <button id="btnPlay" class="playBtn">🎉 A JUGAR!</button>
-      <div class="footerLove">Feliz cumple amor! Te amo! 18.02.26 💖</div>
-      <div id="homeMsg" class="small"></div>
-    </div>
+    <div class="footerLove">Feliz cumple amor! Te amo! 18.02.26 💖</div>
 
     <!-- MODAL JUEGO -->
     <div id="gameModal" class="modalOverlay hidden" role="dialog" aria-modal="true">
@@ -95,17 +94,14 @@ $app.innerHTML = `
 
 /** ---------- ELEMENTS ---------- */
 const elAuthBox = document.getElementById("authBox");
-const elHomeBox = document.getElementById("homeBox");
-const elHomeMsg = document.getElementById("homeMsg");
-
 const elEmail = document.getElementById("email");
 const elSendLink = document.getElementById("sendLink");
 const elAuthMsg = document.getElementById("authMsg");
 
-const elBtnLogout = document.getElementById("btnLogout");
-const elPillCount = document.getElementById("pillCount");
-
 const elBtnPlay = document.getElementById("btnPlay");
+const elBtnLogout = document.getElementById("btnLogout");
+
+const elPillCount = document.getElementById("pillCount");
 
 const elModal = document.getElementById("gameModal");
 const elBtnCloseModal = document.getElementById("btnCloseModal");
@@ -135,6 +131,7 @@ function showWall(visible) {
 function initWall() {
   const wall = document.getElementById("wall");
   if (!wall) return;
+
   wall.innerHTML = "";
 
   for (const letter of LETTERS) {
@@ -155,19 +152,14 @@ function initWall() {
     wall.appendChild(tile);
   }
 
-  // click para jugar esa letra (si está pendiente y hay sesión)
+  // Click en letra pendiente => abre modal y juega esa letra
   wall.addEventListener("click", (e) => {
     const tile = e.target.closest?.(".wallTile");
-    if (!tile) return;
-    if (!session) return;
-
+    if (!tile || !session) return;
     const letter = tile.dataset.letter;
     if (!letter) return;
 
-    if (completed[letter]) {
-      elHomeMsg.textContent = `La letra ${letter} ya está completada 😌`;
-      return;
-    }
+    if (completed[letter]) return;
 
     openGameModal();
     pickLetter(letter);
@@ -208,28 +200,29 @@ function ensureWallStyle(letter, photoUrl) {
 }
 
 /** ---------- AUTH ---------- */
-function renderAuth() {
-  if (session) {
-    elAuthBox.classList.add("hidden");
-    elHomeBox.classList.remove("hidden");
-  } else {
-    elAuthBox.classList.remove("hidden");
-    elHomeBox.classList.add("hidden");
-    closeGameModal();
-  }
+function renderUI() {
+  const logged = !!session;
+
+  elAuthBox.classList.toggle("hidden", logged);
+  elBtnPlay.classList.toggle("hidden", !logged);
+  elBtnLogout.classList.toggle("hidden", !logged);
+
+  showWall(logged);
+
+  if (!logged) closeGameModal();
 }
 
 async function refreshSession() {
   const { data } = await supabase.auth.getSession();
   session = data.session || null;
 
-  renderAuth();
-  showWall(!!session);
+  renderUI();
 
   if (session) {
     initWall();
     await loadGameState();
     fillLetterSelect();
+    renderPills();
   } else {
     completed = {};
     currentLetter = null;
@@ -258,22 +251,18 @@ elSendLink.addEventListener("click", async () => {
   }
 });
 
-/** Logout */
 elBtnLogout.addEventListener("click", async () => {
   await supabase.auth.signOut();
   session = null;
   completed = {};
   currentLetter = null;
   currentActivity = "";
-  showWall(false);
-  renderAuth();
+  renderUI();
   renderPills();
 });
 
-/** ---------- GAME STATE (SUPABASE) ---------- */
+/** ---------- DB LOAD ---------- */
 async function loadGameState() {
-  elHomeMsg.textContent = "Cargando progreso…";
-
   const userId = session.user.id;
 
   const { data, error } = await supabase
@@ -284,7 +273,6 @@ async function loadGameState() {
 
   if (error) {
     console.error(error);
-    elHomeMsg.textContent = "Error: Load failed";
     return;
   }
 
@@ -293,16 +281,12 @@ async function loadGameState() {
     completed[row.letter] = { activity: row.activity, photo_url: row.photo_url };
   }
 
-  // pintar muro
   for (const letter of Object.keys(completed)) {
     setWallPhoto(letter, completed[letter].photo_url, completed[letter].activity);
   }
-
-  renderPills();
-  elHomeMsg.textContent = "";
 }
 
-/** ---------- HOME / MODAL ---------- */
+/** ---------- MODAL ---------- */
 function openGameModal() {
   elModal.classList.remove("hidden");
   elStatusMsg.textContent = "";
@@ -321,30 +305,16 @@ elBtnPlay.addEventListener("click", () => {
 
 elBtnCloseModal.addEventListener("click", closeGameModal);
 
-// cerrar tocando afuera
 elModal.addEventListener("click", (e) => {
   if (e.target === elModal) closeGameModal();
 });
 
-/** ---------- LETRAS: random o elegir ---------- */
+/** ---------- LETTERS ---------- */
 function fillLetterSelect() {
   const pending = LETTERS.filter(l => !completed[l]);
-  elLetterSelect.innerHTML = `<option value="">Elegí una letra…</option>` +
+  elLetterSelect.innerHTML =
+    `<option value="">Elegí una letra…</option>` +
     pending.map(l => `<option value="${l}">${l}</option>`).join("");
-}
-
-function pickRandomLetter() {
-  const pending = LETTERS.filter(l => !completed[l]);
-  if (pending.length === 0) {
-    currentLetter = null;
-    currentActivity = "";
-    elBigLetter.textContent = "💜";
-    elActivityText.textContent = "¡Completaron todo! 🥹";
-    resetScratch();
-    return;
-  }
-  const letter = pending[Math.floor(Math.random() * pending.length)];
-  pickLetter(letter);
 }
 
 function pickLetter(letter) {
@@ -356,8 +326,23 @@ function pickLetter(letter) {
   elBigLetter.textContent = currentLetter;
   elActivityText.textContent = "Raspá para revelar 👆";
 
+  revealedRatio = 0;
   resetScratch();
   fillLetterSelect();
+}
+
+function pickRandomLetter() {
+  const pending = LETTERS.filter(l => !completed[l]);
+  if (pending.length === 0) {
+    elBigLetter.textContent = "💜";
+    elActivityText.textContent = "¡Completaron todo! 🥹";
+    currentLetter = null;
+    currentActivity = "";
+    resetScratch();
+    return;
+  }
+  const letter = pending[Math.floor(Math.random() * pending.length)];
+  pickLetter(letter);
 }
 
 elBtnRandom.addEventListener("click", () => {
@@ -375,7 +360,7 @@ elBtnPickSelected.addEventListener("click", () => {
   pickLetter(v);
 });
 
-/** ---------- SCRATCH (revela de a poco) ---------- */
+/** ---------- SCRATCH (REVELA PROGRESIVO) ---------- */
 let isDown = false;
 let rafPending = false;
 
@@ -383,27 +368,28 @@ function setupScratch() {
   const canvas = elScratch;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-  // tamaño responsivo
   const rect = canvas.getBoundingClientRect();
-  canvas.width = Math.floor(rect.width * devicePixelRatio);
-  canvas.height = Math.floor(rect.height * devicePixelRatio);
+  const dpr = window.devicePixelRatio || 1;
 
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.scale(devicePixelRatio, devicePixelRatio);
+  canvas.width = Math.floor(rect.width * dpr);
+  canvas.height = Math.floor(rect.height * dpr);
+
+  // dibujar en coords CSS
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   // capa gris
   ctx.globalCompositeOperation = "source-over";
   ctx.fillStyle = "rgba(255,255,255,.18)";
   ctx.fillRect(0, 0, rect.width, rect.height);
 
-  // texto “RASPÁ”
+  // texto guía
   ctx.fillStyle = "rgba(0,0,0,.25)";
   ctx.font = "800 22px ui-sans-serif, system-ui";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("RASPÁ", rect.width / 2, rect.height / 2);
 
-  // raspamos
+  // borrar al raspar
   ctx.globalCompositeOperation = "destination-out";
 
   function draw(x, y) {
@@ -449,16 +435,19 @@ function setupScratch() {
     rafPending = true;
     requestAnimationFrame(() => {
       rafPending = false;
-      updateRevealProgress(ctx, rect.width, rect.height);
+      updateRevealProgress(canvas, ctx);
     });
   }
 }
 
-function updateRevealProgress(ctx, w, h) {
+function updateRevealProgress(canvas, ctx) {
   if (!currentLetter) return;
 
-  // muestreo liviano (no pixel por pixel)
-  const step = 10; // cuanto más alto, más rápido pero menos preciso
+  const w = canvas.width;
+  const h = canvas.height;
+
+  // muestreo liviano (en pixeles internos)
+  const step = Math.max(8, Math.floor((window.devicePixelRatio || 1) * 10));
   const img = ctx.getImageData(0, 0, w, h).data;
 
   let total = 0;
@@ -474,24 +463,19 @@ function updateRevealProgress(ctx, w, h) {
 
   revealedRatio = total ? (cleared / total) : 0;
 
-  // Revelado progresivo del texto:
-  // - hasta 15%: sigue “raspá…”
-  // - de 15% a 70%: aparece de a poco
-  // - >70%: full
-  if (revealedRatio < 0.15) {
+  const start = 0.06; // empieza a mostrarse
+  const end = 0.55;   // a este punto ya se ve todo
+
+  if (revealedRatio < start) {
     elActivityText.textContent = "Raspá para revelar 👆";
     return;
   }
 
-  const start = 0.15;
-  const end = 0.70;
   const t = Math.min(1, Math.max(0, (revealedRatio - start) / (end - start)));
+  const full = currentActivity || "Actividad sorpresa 💫";
 
-  const full = currentActivity;
   const n = Math.max(1, Math.floor(full.length * t));
-  const partial = full.slice(0, n) + (t < 1 ? "…" : "");
-
-  elActivityText.textContent = partial;
+  elActivityText.textContent = full.slice(0, n) + (t < 1 ? "…" : "");
 }
 
 function resetScratch() {
@@ -510,13 +494,11 @@ function resetScratch() {
 
 setupScratch();
 
-/** ---------- COMPLETE (subir foto + guardar) ---------- */
+/** ---------- COMPLETE ---------- */
 elBtnComplete.addEventListener("click", async () => {
-  if (!session) return;
-  if (!currentLetter) return;
+  if (!session || !currentLetter) return;
 
-  // obligamos a raspar un poco para que “cuente”
-  if (revealedRatio < 0.15) {
+  if (revealedRatio < 0.06) {
     elStatusMsg.innerHTML = `<span class="err">Primero raspá un poquito para revelar 😌</span>`;
     return;
   }
@@ -566,10 +548,7 @@ elBtnComplete.addEventListener("click", async () => {
     renderPills();
     fillLetterSelect();
 
-    // opcional: cerrar modal al completar
-    // closeGameModal();
-
-    // o seguir jugando con otra letra
+    // listo para seguir jugando
     currentLetter = null;
     currentActivity = "";
     elBigLetter.textContent = "—";
@@ -588,9 +567,6 @@ function renderPills() {
 }
 
 /** ---------- INIT ---------- */
-supabase.auth.onAuthStateChange(() => {
-  refreshSession();
-});
-
+supabase.auth.onAuthStateChange(() => refreshSession());
 refreshSession();
 renderPills();
