@@ -3,7 +3,9 @@ import { ACTIVITIES } from "./activities.js";
 import { supabase, GAME_ID } from "./supabase.js";
 
 /** Letras (incluye Ñ) */
-const LETTERS = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","Ñ","O","P","Q","R","S","T","U","V","W","X","Y","Z"];
+const LETTERS = [
+  "A","B","C","D","E","F","G","H","I","J","K","L","M","N","Ñ","O","P","Q","R","S","T","U","V","W","X","Y","Z"
+];
 
 // ACTIVITIES viene como array: ["A: ...", "B: ...", ...] -> lo pasamos a objeto
 const ACTIVITY_MAP = ACTIVITIES.reduce((acc, line) => {
@@ -17,7 +19,7 @@ const ACTIVITY_MAP = ACTIVITIES.reduce((acc, line) => {
 let session = null;
 let currentLetter = null;
 let currentActivity = "";
-let completed = {}; // { A: { activity, photo_url, photo_path } ... }
+let completed = {}; // { A: { activity, photo_url, photo_path, pin_size, pin_order, created_at } ... }
 
 const $app = document.getElementById("app");
 
@@ -87,6 +89,23 @@ $app.innerHTML = `
 
       <div class="footerLove">Feliz cumple amor! Te amo! 18.02.26 💖</div>
     </div>
+
+    <!-- MURO PINTEREST -->
+    <div class="muroCard">
+      <div class="muroHeader">
+        <div>
+          <div class="muroTitle">🧩 Muro de recuerdos</div>
+          <div class="small">Se arma solo con las letras completadas. Podés reordenar arrastrando y cambiar tamaños.</div>
+        </div>
+
+        <div class="muroTools">
+          <button id="btnMuroRelayout" class="btn">🔧 Reacomodar</button>
+        </div>
+      </div>
+
+      <div id="muroGrid" class="muroGrid" aria-label="Muro de fotos"></div>
+    </div>
+
   </div>
 
   <!-- LIGHTBOX -->
@@ -213,7 +232,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeLightbox();
 });
 
-// click en tiles con foto (captura en el wall)
+// click en tiles con foto
 document.getElementById("wall")?.addEventListener("click", (e) => {
   const tile = e.target.closest(".wallTile");
   if (!tile) return;
@@ -294,6 +313,7 @@ elBtnLogout.addEventListener("click", async () => {
   elGameBox.classList.add("hidden");
   elAuthBox.classList.remove("hidden");
   renderPills();
+  renderMuro();
   initWall();
 });
 
@@ -315,7 +335,7 @@ async function loadGameState() {
 
   const { data, error } = await supabase
     .from("bingo_entries")
-    .select("letter, activity, photo_url, photo_path")
+    .select("letter, activity, photo_url, photo_path, pin_size, pin_order, created_at")
     .eq("game_id", GAME_ID)
     .eq("user_id", userId);
 
@@ -331,7 +351,7 @@ async function loadGameState() {
   for (const row of data || []) {
     let viewUrl = row.photo_url || "";
 
-    // signed URL para BUCKET PRIVATE
+    // signed URL para bucket PRIVATE
     if (row.photo_path) {
       const { data: signed, error: signErr } = await supabase.storage
         .from("bingo-photos")
@@ -342,15 +362,20 @@ async function loadGameState() {
     completed[row.letter] = {
       activity: row.activity,
       photo_url: viewUrl,
-      photo_path: row.photo_path
+      photo_path: row.photo_path,
+      pin_size: row.pin_size || "m",
+      pin_order: row.pin_order ?? 9999,
+      created_at: row.created_at
     };
 
     if (viewUrl) setWallPhoto(row.letter, viewUrl, row.activity);
   }
 
   renderPills();
-  elStatusMsg.textContent = "";
   fillLetterSelect();
+  renderMuro();
+
+  elStatusMsg.textContent = "";
 }
 
 /** ---------- UI helpers ---------- */
@@ -423,16 +448,19 @@ function setupScratch() {
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+  // capa gris
   ctx.globalCompositeOperation = "source-over";
   ctx.fillStyle = "rgba(255,255,255,.18)";
   ctx.fillRect(0, 0, rect.width, rect.height);
 
+  // texto “RASPÁ”
   ctx.fillStyle = "rgba(0,0,0,.25)";
   ctx.font = "800 22px ui-sans-serif, system-ui";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("RASPÁ", rect.width/2, rect.height/2);
+  ctx.fillText("RASPÁ", rect.width / 2, rect.height / 2);
 
+  // borrar con destination-out
   ctx.globalCompositeOperation = "destination-out";
 
   function draw(x, y) {
@@ -480,6 +508,7 @@ function updateRevealProgress(canvas, ctx) {
   const w = canvas.width;
   const h = canvas.height;
 
+  // muestreo estable
   const step = 8;
   const img = ctx.getImageData(0, 0, w, h).data;
 
@@ -508,6 +537,7 @@ function updateRevealProgress(canvas, ctx) {
 function resetScratch() {
   revealedRatio = 0;
 
+  // rearmar canvas (limpia listeners)
   const old = elScratch;
   const parent = old.parentElement;
   const fresh = old.cloneNode(true);
@@ -518,6 +548,198 @@ function resetScratch() {
 }
 
 setupScratch();
+
+/** ---------- MURO PINTEREST ---------- */
+const elMuroGrid = () => document.getElementById("muroGrid");
+
+function getPinsSorted() {
+  return Object.entries(completed)
+    .filter(([, v]) => v?.photo_url)
+    .map(([letter, v]) => ({ letter, ...v }))
+    .sort((a, b) => {
+      const ao = (a.pin_order ?? 9999);
+      const bo = (b.pin_order ?? 9999);
+      if (ao !== bo) return ao - bo;
+      return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+    });
+}
+
+// Masonry: calcula cuántas filas ocupa cada pin
+function resizeMasonryItem(item) {
+  const grid = elMuroGrid();
+  if (!grid) return;
+
+  const rowHeight = parseInt(getComputedStyle(grid).getPropertyValue("grid-auto-rows"), 10);
+  const rowGap = parseInt(getComputedStyle(grid).getPropertyValue("gap"), 10);
+
+  const img = item.querySelector("img");
+  if (!img) return;
+
+  const contentHeight = img.getBoundingClientRect().height;
+  const span = Math.ceil((contentHeight + rowGap) / (rowHeight + rowGap));
+  item.style.gridRowEnd = `span ${Math.max(span, 8)}`;
+}
+
+function relayoutMasonry() {
+  const grid = elMuroGrid();
+  if (!grid) return;
+  [...grid.children].forEach(resizeMasonryItem);
+}
+
+// Guardar size
+async function setPinSize(letter, size) {
+  if (!session) return;
+  if (!completed[letter]) return;
+
+  completed[letter].pin_size = size;
+
+  const userId = session.user.id;
+
+  await supabase
+    .from("bingo_entries")
+    .upsert({
+      game_id: GAME_ID,
+      user_id: userId,
+      letter,
+      pin_size: size,
+      pin_order: completed[letter].pin_order ?? 9999
+    }, { onConflict: "game_id,user_id,letter" });
+
+  renderMuro();
+}
+
+// Guardar orden (recalcula 1..N y upsert)
+async function savePinOrder(pins) {
+  if (!session) return;
+
+  const userId = session.user.id;
+
+  const payload = pins.map((p, idx) => ({
+    game_id: GAME_ID,
+    user_id: userId,
+    letter: p.letter,
+    pin_order: idx + 1,
+    pin_size: completed[p.letter]?.pin_size || "m"
+  }));
+
+  payload.forEach(x => {
+    if (completed[x.letter]) completed[x.letter].pin_order = x.pin_order;
+  });
+
+  await supabase
+    .from("bingo_entries")
+    .upsert(payload, { onConflict: "game_id,user_id,letter" });
+}
+
+let dragLetter = null;
+
+function attachDragHandlers(pinEl, letter) {
+  pinEl.draggable = true;
+
+  pinEl.addEventListener("dragstart", (e) => {
+    dragLetter = letter;
+    e.dataTransfer.effectAllowed = "move";
+    pinEl.style.opacity = "0.6";
+  });
+
+  pinEl.addEventListener("dragend", () => {
+    dragLetter = null;
+    pinEl.style.opacity = "1";
+  });
+
+  pinEl.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  });
+
+  pinEl.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    const targetLetter = letter;
+    if (!dragLetter || dragLetter === targetLetter) return;
+
+    const pins = getPinsSorted();
+    const from = pins.findIndex(p => p.letter === dragLetter);
+    const to = pins.findIndex(p => p.letter === targetLetter);
+    if (from < 0 || to < 0) return;
+
+    const [moved] = pins.splice(from, 1);
+    pins.splice(to, 0, moved);
+
+    await savePinOrder(pins);
+    renderMuro();
+  });
+}
+
+function renderMuro() {
+  const grid = elMuroGrid();
+  if (!grid) return;
+
+  const pins = getPinsSorted();
+
+  if (pins.length === 0) {
+    grid.innerHTML = `<div class="small">Todavía no hay fotos completadas 🥺</div>`;
+    return;
+  }
+
+  grid.innerHTML = "";
+
+  for (const p of pins) {
+    const size = p.pin_size || "m";
+
+    const pin = document.createElement("div");
+    pin.className = `pin size-${size}`;
+    pin.dataset.letter = p.letter;
+
+    pin.innerHTML = `
+      <div class="pinTop">
+        <div class="pinBadge">${p.letter}</div>
+        <div class="pinControls">
+          <button class="pinBtn ${size==="s"?"active":""}" data-size="s">S</button>
+          <button class="pinBtn ${size==="m"?"active":""}" data-size="m">M</button>
+          <button class="pinBtn ${size==="l"?"active":""}" data-size="l">L</button>
+          <button class="pinBtn ${size==="xl"?"active":""}" data-size="xl">XL</button>
+        </div>
+      </div>
+
+      <img class="pinImg" src="${p.photo_url}" alt="Foto ${p.letter}" loading="lazy" decoding="async"/>
+
+      <div class="pinBottom">${(p.activity || "").slice(0, 70)}${(p.activity||"").length>70?"…":""}</div>
+    `;
+
+    // Size buttons
+    pin.querySelectorAll(".pinBtn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const newSize = btn.dataset.size;
+        setPinSize(p.letter, newSize);
+      });
+    });
+
+    // Click abre lightbox
+    pin.addEventListener("click", () => openLightbox(p.letter));
+
+    // Drag reorder
+    attachDragHandlers(pin, p.letter);
+
+    // Masonry on load
+    const img = pin.querySelector("img");
+    img.addEventListener("load", () => {
+      resizeMasonryItem(pin);
+    });
+
+    grid.appendChild(pin);
+  }
+
+  setTimeout(relayoutMasonry, 80);
+}
+
+document.addEventListener("click", (e) => {
+  if (e.target?.id === "btnMuroRelayout") relayoutMasonry();
+});
+
+window.addEventListener("resize", () => {
+  relayoutMasonry();
+});
 
 /** ---------- COMPLETE (subir foto + guardar) ---------- */
 elBtnComplete.addEventListener("click", async () => {
@@ -542,12 +764,14 @@ elBtnComplete.addEventListener("click", async () => {
     const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
     const path = `${GAME_ID}/${userId}/${currentLetter}-${Date.now()}.${ext}`;
 
+    // sube al bucket
     const { error: upErr } = await supabase.storage
       .from("bingo-photos")
       .upload(path, file, { upsert: true });
 
     if (upErr) throw upErr;
 
+    // signed URL (funciona con bucket PRIVATE)
     const { data: signed, error: signErr } = await supabase.storage
       .from("bingo-photos")
       .createSignedUrl(path, 60 * 60 * 24 * 7);
@@ -558,6 +782,9 @@ elBtnComplete.addEventListener("click", async () => {
 
     elStatusMsg.textContent = "Guardando…";
 
+    // upsert en tabla (guarda path y url + defaults pin)
+    const nextOrder = Object.values(completed).filter(v => v?.photo_url).length + 1;
+
     const { error: dbErr } = await supabase
       .from("bingo_entries")
       .upsert({
@@ -566,18 +793,37 @@ elBtnComplete.addEventListener("click", async () => {
         letter: currentLetter,
         activity: currentActivity,
         photo_url: photoUrl,
-        photo_path: path
+        photo_path: path,
+        pin_size: completed[currentLetter]?.pin_size || "m",
+        pin_order: completed[currentLetter]?.pin_order ?? nextOrder
       }, { onConflict: "game_id,user_id,letter" });
 
     if (dbErr) throw dbErr;
 
-    completed[currentLetter] = { activity: currentActivity, photo_url: photoUrl, photo_path: path };
+    // actualizar local + muro
+    completed[currentLetter] = {
+      activity: currentActivity,
+      photo_url: photoUrl,
+      photo_path: path,
+      pin_size: completed[currentLetter]?.pin_size || "m",
+      pin_order: completed[currentLetter]?.pin_order ?? nextOrder,
+      created_at: completed[currentLetter]?.created_at
+    };
+
     setWallPhoto(currentLetter, photoUrl, currentActivity);
 
+    // limpiar input
     elPhoto.value = "";
+
     elStatusMsg.innerHTML = `<span class="ok">Listo 💜 Guardado.</span>`;
 
+    // refrescar select pendientes
     fillLetterSelect();
+
+    // refrescar muro
+    renderMuro();
+
+    // elegir nueva letra random para seguir jugando
     pickRandomPendingLetter();
   } catch (e) {
     console.error(e);
@@ -592,3 +838,4 @@ supabase.auth.onAuthStateChange(() => {
 
 refreshSession();
 renderPills();
+renderMuro();
