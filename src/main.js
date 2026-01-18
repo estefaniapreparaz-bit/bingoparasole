@@ -2,6 +2,16 @@ import "./style.css";
 import { ACTIVITIES } from "./activities.js";
 import { supabase, GAME_ID } from "./supabase.js";
 
+// ACTIVITIES viene como array: ["A: ...", "B: ...", ...]
+// Lo convertimos a objeto: { A: "...", B: "...", ... }
+const ACTIVITY_MAP = ACTIVITIES.reduce((acc, line) => {
+  const m = String(line).match(/^([A-ZÑ]):\s*(.*)$/i);
+  if (!m) return acc;
+  const key = m[1].toUpperCase();
+  acc[key] = m[2].trim();
+  return acc;
+}, {});
+
 const LETTERS = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","Ñ","O","P","Q","R","S","T","U","V","W","X","Y","Z"];
 
 let session = null;
@@ -305,7 +315,7 @@ function fillLetterSelect() {
 
 function pickLetter(letter) {
   currentLetter = letter;
-  currentActivity = ACTIVITIES[currentLetter] || "Actividad sorpresa 💫";
+  currentActivity = ACTIVITY_MAP[currentLetter] || "Actividad sorpresa 💫";
   elBigLetter.textContent = currentLetter;
 
   revealedRatio = 0;
