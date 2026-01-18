@@ -9,6 +9,7 @@ let session = null;
 let currentLetter = null;
 let currentActivity = "";
 let completed = {}; // { A: { activity, photo_url } ... }
+let wallReady = false;
 
 const $app = document.getElementById("app");
 
@@ -68,9 +69,23 @@ $app.innerHTML = `
   </div>
 `;
 
+/** ---------- WALL HELPERS (solo cuando hay sesión) ---------- */
+function showWall(visible) {
+  const wall = document.getElementById("wall");
+  if (!wall) return;
+
+  wall.classList.toggle("hidden", !visible);
+  wall.setAttribute("aria-hidden", String(!visible));
+
+  // opcional: estado para estilos tipo body.locked
+  document.body.classList.toggle("locked", !visible);
+}
+
 /** ---------- WALL INIT ---------- */
 function initWall() {
   const wall = document.getElementById("wall");
+  if (!wall) return;
+
   wall.innerHTML = "";
 
   for (const letter of LETTERS) {
@@ -90,12 +105,15 @@ function initWall() {
     tile.appendChild(caption);
     wall.appendChild(tile);
   }
+
+  wallReady = true;
 }
-initWall();
 
 /** setea foto en el tile + pie de foto */
 function setWallPhoto(letter, photoUrl, activityText) {
   const wall = document.getElementById("wall");
+  if (!wall) return;
+
   const tile = wall.querySelector(`.wallTile[data-letter="${letter}"]`);
   if (!tile) return;
 
@@ -140,7 +158,7 @@ const elPillLetter = document.getElementById("pillLetter");
 const elPillCount = document.getElementById("pillCount");
 const elBigLetter = document.getElementById("bigLetter");
 
-const elScratch = document.getElementById("scratch");
+let elScratch = document.getElementById("scratch");
 const elActivityText = document.getElementById("activityText");
 const elPhoto = document.getElementById("photo");
 const elBtnComplete = document.getElementById("btnComplete");
@@ -150,9 +168,22 @@ const elStatusMsg = document.getElementById("statusMsg");
 async function refreshSession() {
   const { data } = await supabase.auth.getSession();
   session = data.session || null;
+
   renderAuth();
+
+  // gating del fondo: solo cuando hay sesión
+  showWall(!!session);
+
   if (session) {
+    // inicializar muro SOLO cuando hay sesión (y una sola vez)
+    if (!wallReady) initWall();
+
     await loadGameState();
+  } else {
+    // si no hay sesión, reseteo visual del muro por si venías de estar logueada
+    wallReady = false;
+    const wall = document.getElementById("wall");
+    if (wall) wall.innerHTML = "";
   }
 }
 
@@ -189,10 +220,18 @@ elSendLink.addEventListener("click", async () => {
 /** Logout */
 elBtnLogout.addEventListener("click", async () => {
   await supabase.auth.signOut();
+
   session = null;
   currentLetter = null;
   currentActivity = "";
   completed = {};
+
+  // ocultar muro y limpiar
+  showWall(false);
+  wallReady = false;
+  const wall = document.getElementById("wall");
+  if (wall) wall.innerHTML = "";
+
   renderPills();
   resetScratch();
   renderAuth();
@@ -236,9 +275,11 @@ async function loadGameState() {
     completed[row.letter] = { activity: row.activity, photo_url: row.photo_url };
   }
 
-  // pintar muro
-  for (const letter of Object.keys(completed)) {
-    setWallPhoto(letter, completed[letter].photo_url, completed[letter].activity);
+  // pintar muro (si el muro existe)
+  if (wallReady) {
+    for (const letter of Object.keys(completed)) {
+      setWallPhoto(letter, completed[letter].photo_url, completed[letter].activity);
+    }
   }
 
   // elegir letra actual
@@ -289,9 +330,11 @@ function setupScratch() {
   canvas.width = Math.floor(rect.width * devicePixelRatio);
   canvas.height = Math.floor(rect.height * devicePixelRatio);
 
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(devicePixelRatio, devicePixelRatio);
 
   // capa gris
+  ctx.globalCompositeOperation = "source-over";
   ctx.fillStyle = "rgba(255,255,255,.18)";
   ctx.fillRect(0, 0, rect.width, rect.height);
 
@@ -299,8 +342,10 @@ function setupScratch() {
   ctx.fillStyle = "rgba(0,0,0,.25)";
   ctx.font = "800 22px ui-sans-serif, system-ui";
   ctx.textAlign = "center";
-  ctx.fillText("RASPÁ", rect.width/2, rect.height/2);
+  ctx.textBaseline = "middle";
+  ctx.fillText("RASPÁ", rect.width / 2, rect.height / 2);
 
+  // ahora raspamos
   ctx.globalCompositeOperation = "destination-out";
 
   function draw(x, y) {
@@ -343,10 +388,7 @@ function setupScratch() {
 
   function checkReveal() {
     if (revealed) return;
-
-    // sample muy simple: si raspó bastante, revela
-    // (no hacemos cálculo caro: con unos strokes ya alcanza)
-    // regla: cuando raspás un poco, revelamos el texto
+    // tu lógica “simple” para revelar
     revealed = true;
     elActivityText.textContent = currentActivity;
   }
@@ -354,23 +396,16 @@ function setupScratch() {
 
 function resetScratch() {
   revealed = false;
-  // rearmar canvas (limpia listeners reloading simple)
-  const old = elScratch;
+
+  // reemplaza canvas para limpiar listeners
+  const old = document.getElementById("scratch");
+  if (!old) return;
+
   const parent = old.parentElement;
   const fresh = old.cloneNode(true);
   parent.replaceChild(fresh, old);
 
-  // reasignar referencia
-  // eslint-disable-next-line no-global-assign
-  window.__scratchRef = fresh;
-
-  // update variable local
-  // (hack simple sin framework)
-  // volver a capturar
-  const newCanvas = document.getElementById("scratch");
-  elScratch.width = 0; // no-op, solo para evitar warnings
-  // reasignar global real:
-  // (usamos la id para usarlo siempre en setupScratch)
+  elScratch = fresh;
   setupScratch();
 }
 
@@ -427,7 +462,7 @@ elBtnComplete.addEventListener("click", async () => {
 
     // actualizar local + muro
     completed[currentLetter] = { activity: currentActivity, photo_url: photoUrl };
-    setWallPhoto(currentLetter, photoUrl, currentActivity);
+    if (wallReady) setWallPhoto(currentLetter, photoUrl, currentActivity);
 
     // limpiar input
     elPhoto.value = "";
@@ -449,7 +484,7 @@ function renderPills() {
 }
 
 /** ---------- INIT ---------- */
-supabase.auth.onAuthStateChange((_event, _sess) => {
+supabase.auth.onAuthStateChange(() => {
   refreshSession();
 });
 
